@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>DigitalTwin.ai — Assembly Line Prototype</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  :root{
+    --navy:#0e1526;
+    --panel:#141d33;
+    --panel2:#1a2540;
+    --line:#2a3654;
+    --teal:#22c3b6;
+    --teal-dim:#0e7c7b;
+    --amber:#f2b134;
+    --red:#ef5b5b;
+    --text:#e6ecf5;
+    --sub:#8a97b3;
+    --mono:'SF Mono','Cascadia Code',Consolas,monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--navy);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;}
+  header{padding:18px 24px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;}
+  header h1{margin:0;font-size:18px;letter-spacing:.3px;}
+  header h1 span{color:var(--teal);}
+  header .clock{font-family:var(--mono);color:var(--sub);font-size:12px;}
+  nav{display:flex;gap:6px;padding:10px 24px;border-bottom:1px solid var(--line);background:var(--panel);}
+  nav button{background:transparent;border:1px solid var(--line);color:var(--sub);padding:8px 16px;border-radius:20px;cursor:pointer;font-size:13px;transition:.15s;}
+  nav button.active{background:var(--teal);color:#05201e;border-color:var(--teal);font-weight:600;}
+  nav button:hover:not(.active){border-color:var(--teal-dim);color:var(--text);}
+  main{padding:20px 24px 60px;max-width:1400px;margin:0 auto;}
+  .view{display:none;}
+  .view.active{display:block;}
+  .grid{display:grid;gap:16px;}
+  .g4{grid-template-columns:repeat(4,1fr);}
+  .g3{grid-template-columns:2fr 1fr;}
+  @media(max-width:900px){.g4{grid-template-columns:repeat(2,1fr);}.g3{grid-template-columns:1fr;}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px 18px;}
+  .card h3{margin:0 0 4px;font-size:12px;text-transform:uppercase;letter-spacing:.6px;color:var(--sub);font-weight:600;}
+  .stat{font-size:28px;font-weight:700;font-family:var(--mono);}
+  .stat.good{color:var(--teal);}
+  .stat.warn{color:var(--amber);}
+  .stat.bad{color:var(--red);}
+  .subline{font-size:12px;color:var(--sub);margin-top:4px;}
+  section.block{margin-top:22px;}
+  section.block>h2{font-size:14px;text-transform:uppercase;letter-spacing:.6px;color:var(--sub);margin:0 0 10px;border-bottom:1px solid var(--line);padding-bottom:8px;}
+
+  /* line map */
+  .line-map{display:flex;overflow-x:auto;gap:3px;padding:14px 0 20px;}
+  .zone-label{writing-mode:vertical-rl;color:var(--sub);font-size:11px;text-transform:uppercase;letter-spacing:1px;padding:4px;align-self:stretch;display:flex;align-items:center;justify-content:center;border-right:1px dashed var(--line);margin-right:6px;}
+  .station{min-width:34px;height:64px;border-radius:6px;position:relative;cursor:pointer;flex-shrink:0;display:flex;align-items:flex-end;justify-content:center;border:1px solid transparent;}
+  .station .fill{width:100%;border-radius:6px;transition:.2s;}
+  .station.manual{border:1px dashed var(--sub);}
+  .station:hover{border-color:var(--teal);}
+  .station .idx{position:absolute;top:-16px;font-size:9px;color:var(--sub);font-family:var(--mono);}
+  .legend{display:flex;gap:18px;font-size:11px;color:var(--sub);margin-top:6px;flex-wrap:wrap;}
+  .legend .sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;color:var(--sub);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.4px;padding:8px 10px;border-bottom:1px solid var(--line);}
+  td{padding:9px 10px;border-bottom:1px solid var(--line);}
+  tr:hover td{background:var(--panel2);}
+  .pill{display:inline-block;padding:2px 9px;border-radius:12px;font-size:11px;font-weight:600;}
+  .pill.good{background:rgba(34,195,182,.15);color:var(--teal);}
+  .pill.warn{background:rgba(242,177,52,.15);color:var(--amber);}
+  .pill.bad{background:rgba(239,91,91,.15);color:var(--red);}
+  .conf{font-family:var(--mono);font-size:11px;color:var(--sub);}
+
+  #stationDetail{position:fixed;right:0;top:0;height:100%;width:340px;background:var(--panel);border-left:1px solid var(--line);transform:translateX(100%);transition:.25s;padding:20px;overflow-y:auto;z-index:20;}
+  #stationDetail.open{transform:translateX(0);}
+  #stationDetail h3{margin-top:0;}
+  #stationDetail .close{float:right;background:none;border:none;color:var(--sub);cursor:pointer;font-size:16px;}
+  .kv{display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px;}
+  .kv b{color:var(--sub);font-weight:500;}
+
+  button.action{background:var(--teal);color:#05201e;border:none;padding:8px 14px;border-radius:6px;font-weight:600;cursor:pointer;font-size:12px;}
+  button.action.secondary{background:transparent;border:1px solid var(--line);color:var(--text);}
+  select{background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:6px;padding:6px 10px;font-size:13px;}
+  .trace-path{display:flex;gap:4px;overflow-x:auto;padding:12px 0;}
+  .trace-path .node{min-width:60px;padding:8px;border-radius:6px;text-align:center;font-size:11px;background:var(--panel2);border:1px solid var(--line);}
+  .trace-path .node.suspect{border-color:var(--red);background:rgba(239,91,91,.12);}
+  .trace-path .arrow{color:var(--sub);align-self:center;}
+  .badge-conf{font-size:10px;padding:1px 6px;border-radius:8px;background:var(--panel2);color:var(--sub);margin-left:6px;}
+  footer{text-align:center;color:var(--sub);font-size:11px;padding:20px;border-top:1px solid var(--line);}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>DigitalTwin<span>.ai</span> — Line 3, Mixed-Model Assembly</h1>
+  <div class="clock" id="clock">simulated production clock</div>
+</header>
+
+<nav>
+  <button class="active" data-view="floor">Floor Supervisor</button>
+  <button data-view="manager">Plant Manager</button>
+  <button data-view="leadership">Leadership</button>
+  <button data-view="trace">Defect Backward-Trace</button>
+</nav>
+
+<main>
+
+  <!-- FLOOR VIEW -->
+  <div class="view active" id="view-floor">
+    <div class="grid g4">
+      <div class="card"><h3>Line Health</h3><div class="stat good" id="f-health">--</div><div class="subline">weighted across 42 stations</div></div>
+      <div class="card"><h3>Active Alerts</h3><div class="stat warn" id="f-alerts">--</div><div class="subline">bottleneck + defect-risk, validated only</div></div>
+      <div class="card"><h3>Current Bottleneck</h3><div class="stat bad" id="f-bottleneck">--</div><div class="subline" id="f-bottleneck-sub">station under review</div></div>
+      <div class="card"><h3>Units This Shift</h3><div class="stat" id="f-units">--</div><div class="subline">final-assembly output count</div></div>
+    </div>
+
+    <section class="block">
+      <h2>Live Station Map</h2>
+      <div class="line-map" id="lineMap"></div>
+      <div class="legend">
+        <span><span class="sw" style="background:var(--teal)"></span>Healthy</span>
+        <span><span class="sw" style="background:var(--amber)"></span>Elevated risk</span>
+        <span><span class="sw" style="background:var(--red)"></span>Active alert</span>
+        <span>Dashed border = manually-inspected station (inferred health)</span>
+      </div>
+    </section>
+
+    <section class="block">
+      <h2>Real-Time Alert Feed</h2>
+      <table>
+        <thead><tr><th>Time</th><th>Station</th><th>Signal</th><th>Recommended Action</th><th>Status</th></tr></thead>
+        <tbody id="alertFeed"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <!-- MANAGER VIEW -->
+  <div class="view" id="view-manager">
+    <div class="grid g4">
+      <div class="card"><h3>Unplanned Stoppages (7d)</h3><div class="stat warn" id="m-stops">--</div><div class="subline">vs. 7 baseline / week</div></div>
+      <div class="card"><h3>Defect Escape Rate</h3><div class="stat" id="m-escape">--</div><div class="subline">reaching final inspection</div></div>
+      <div class="card"><h3>Avg Cycle Time Drift</h3><div class="stat" id="m-drift">--</div><div class="subline">vs. engineered standard</div></div>
+      <div class="card"><h3>Sensor Coverage</h3><div class="stat good" id="m-coverage">--</div><div class="subline">of 42 stations instrumented</div></div>
+    </div>
+
+    <section class="block">
+      <h2>Station Health Trend — Rolling 14 Days</h2>
+      <canvas id="trendChart" height="160"></canvas>
+    </section>
+
+    <section class="block">
+      <h2>Stations Needing Attention</h2>
+      <table>
+        <thead><tr><th>Station</th><th>Zone</th><th>Coverage</th><th>Health</th><th>Confidence</th><th>Trend (7d)</th></tr></thead>
+        <tbody id="managerTable"></tbody>
+      </table>
+    </section>
+
+    <section class="block">
+      <h2>Recommended Sensor Retrofits — Next Maintenance Window</h2>
+      <table>
+        <thead><tr><th>Station</th><th>Reason</th><th>Est. Cost Tier</th><th>Priority</th></tr></thead>
+        <tbody id="retrofitTable"></tbody>
+      </table>
+    </section>
+  </div>
+
+  <!-- LEADERSHIP VIEW -->
+  <div class="view" id="view-leadership">
+    <div class="grid g4">
+      <div class="card"><h3>Downtime Avoided (MTD)</h3><div class="stat good" id="l-downtime">--</div><div class="subline">est. minutes, vs. baseline</div></div>
+      <div class="card"><h3>Rework Hours Saved (MTD)</h3><div class="stat good" id="l-rework">--</div><div class="subline">via bounded backward-trace</div></div>
+      <div class="card"><h3>Est. ROI (Year 1)</h3><div class="stat good" id="l-roi">--</div><div class="subline">vs. deployment + retrofit cost</div></div>
+      <div class="card"><h3>Rollout Coverage</h3><div class="stat" id="l-rollout">--</div><div class="subline">of 3 candidate lines live</div></div>
+    </div>
+
+    <section class="block">
+      <h2>Phased Rollout Status</h2>
+      <table>
+        <thead><tr><th>Phase</th><th>Scope</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Phase 0 — Discovery</td><td>Line 3 instrument audit &amp; baseline</td><td><span class="pill good">Complete</span></td></tr>
+          <tr><td>Phase 1 — Shadow Twin</td><td>SPC + anomaly detection, logged only</td><td><span class="pill good">Complete</span></td></tr>
+          <tr><td>Phase 2 — Guided Rollout</td><td>Live floor alerts + manager/QE views</td><td><span class="pill warn">In progress</span></td></tr>
+          <tr><td>Phase 3 — Scale</td><td>Lines 4 &amp; 7, second plant</td><td><span class="pill bad">Not started</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="block">
+      <h2>Investment Case Summary</h2>
+      <p style="color:var(--sub);font-size:13px;line-height:1.6;max-width:760px;">
+        Figures below are directional, generated from simulated line data for illustration, and would be
+        recalibrated against Line 3's actual historical performance during a real Phase 0 discovery engagement.
+      </p>
+      <div class="grid" style="grid-template-columns:1fr 1fr 1fr;">
+        <div class="card"><h3>Deployment Cost</h3><div class="stat">$180K</div><div class="subline">platform + retrofit sensors, Line 3</div></div>
+        <div class="card"><h3>Annualized Benefit</h3><div class="stat good">$540K</div><div class="subline">downtime + rework + escape reduction</div></div>
+        <div class="card"><h3>Payback Period</h3><div class="stat good">~4 months</div><div class="subline">at current avoided-cost run-rate</div></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- TRACE VIEW -->
+  <div class="view" id="view-trace">
+    <section class="block" style="margin-top:0;">
+      <h2>Defect Backward-Trace</h2>
+      <p style="color:var(--sub);font-size:13px;">Select a defect caught at final inspection. The twin replays that unit's path and ranks the most likely origin station using anomaly severity, historical defect correlation, and dwell-to-surface timing.</p>
+      <div style="display:flex;gap:10px;align-items:center;margin:12px 0;">
+        <select id="defectSelect"></select>
+        <button class="action" onclick="runTrace()">Trace Origin</button>
+      </div>
+      <div id="traceResult"></div>
+    </section>
+  </div>
+
+</main>
+
+<div id="stationDetail">
+  <button class="close" onclick="closeDetail()">✕</button>
+  <div id="stationDetailBody"></div>
+</div>
+
+<footer>DigitalTwin.ai prototype — fully simulated data, no live plant connection · Accenture Innovation Challenge 2026, Problem Track 4</footer>
+
+<script>
+/* ---------- deterministic pseudo-random ---------- */
+let seed = 42;
+function rnd(){ seed = (seed*1103515245+12345) & 0x7fffffff; return (seed/0x7fffffff); }
+function rndRange(a,b){ return a + rnd()*(b-a); }
+function pick(arr){ return arr[Math.floor(rnd()*arr.length)]; }
+
+/* ---------- generate 42 stations across 3 zones ---------- */
+const zones = [
+  {name:'Body Construction', count:16},
+  {name:'Paint', count:10},
+  {name:'Final Assembly', count:16},
+];
+let stations = [];
+let sIdx = 0;
+zones.forEach(z=>{
+  for(let i=0;i<z.count;i++){
+    sIdx++;
+    const manual = rnd() < 0.25; // ~25% sensor-poor
+    let health = rndRange(78,99);
+    let cycleDrift = rndRange(-4,4);
+    if(rnd()<0.12){ health -= rndRange(15,35); cycleDrift += rndRange(6,18); } // seed some problem stations
+    const confidence = manual ? rndRange(55,78) : rndRange(88,99);
+    stations.push({
+      id: sIdx,
+      name: `ST-${String(sIdx).padStart(2,'0')}`,
+      zone: z.name,
+      manual,
+      health: Math.max(30,Math.min(99,health)),
+      cycleDrift,
+      confidence,
+      trend: rndRange(-6,4),
+      historyDefects: Math.floor(rndRange(0,6)),
+    });
+  }
+});
+
+function healthColor(h){
+  if(h>=85) return getCSS('--teal');
+  if(h>=65) return getCSS('--amber');
+  return getCSS('--red');
+}
+function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function healthPill(h){
+  if(h>=85) return '<span class="pill good">Healthy</span>';
+  if(h>=65) return '<span class="pill warn">Elevated</span>';
+  return '<span class="pill bad">Alert</span>';
+}
+
+/* ---------- render line map ---------- */
+function renderLineMap(){
+  const map = document.getElementById('lineMap');
+  map.innerHTML = '';
+  let lastZone = null;
+  stations.forEach(st=>{
+    if(st.zone !== lastZone){
+      const lbl = document.createElement('div');
+      lbl.className='zone-label';
+      lbl.textContent = st.zone;
+      map.appendChild(lbl);
+      lastZone = st.zone;
+    }
+    const div = document.createElement('div');
+    div.className = 'station' + (st.manual?' manual':'');
+    div.title = `${st.name} — health ${st.health.toFixed(0)}`;
+    div.onclick = ()=>openDetail(st.id);
+    const fillHeight = Math.max(10, st.health);
+    div.innerHTML = `<span class="idx">${st.id}</span><div class="fill" style="height:${fillHeight}%;background:${healthColor(st.health)}"></div>`;
+    map.appendChild(div);
+  });
+}
+
+/* ---------- station detail drawer ---------- */
+function openDetail(id){
+  const st = stations.find(s=>s.id===id);
+  const body = document.getElementById('stationDetailBody');
+  body.innerHTML = `
+    <h3>${st.name} <span class="badge-conf">${st.zone}</span></h3>
+    <div class="kv"><b>Health Score</b><span>${st.health.toFixed(1)} ${healthPill(st.health)}</span></div>
+    <div class="kv"><b>Data Source</b><span>${st.manual? 'Manual checklist (inferred)' : 'Live sensor telemetry'}</span></div>
+    <div class="kv"><b>Confidence</b><span class="conf">${st.confidence.toFixed(0)}%</span></div>
+    <div class="kv"><b>Cycle Time Drift</b><span>${st.cycleDrift>0?'+':''}${st.cycleDrift.toFixed(1)}%</span></div>
+    <div class="kv"><b>7d Trend</b><span>${st.trend>0?'+':''}${st.trend.toFixed(1)} pts</span></div>
+    <div class="kv"><b>Historical Defects Linked</b><span>${st.historyDefects}</span></div>
+    <p style="font-size:12px;color:var(--sub);margin-top:14px;">
+      ${st.manual
+        ? 'This station relies on manual checklists. Health is inferred from upstream/downstream cycle-time signals and checklist entries — treat as directional, not exact.'
+        : 'Health is computed directly from live SPC control limits on this station\\'s sensor stream.'}
+    </p>
+    <div style="margin-top:14px;">
+      <button class="action" onclick="alert('Acknowledged — dispatched to floor supervisor queue (simulated).')">Acknowledge</button>
+      <button class="action secondary" onclick="alert('Escalated to quality engineer (simulated).')">Escalate</button>
+    </div>
+  `;
+  document.getElementById('stationDetail').classList.add('open');
+}
+function closeDetail(){ document.getElementById('stationDetail').classList.remove('open'); }
+
+/* ---------- floor view stats + alerts ---------- */
+let alertLog = [];
+function computeFloor(){
+  const avgHealth = stations.reduce((a,s)=>a+s.health,0)/stations.length;
+  document.getElementById('f-health').textContent = avgHealth.toFixed(1);
+  document.getElementById('f-health').className = 'stat ' + (avgHealth>85?'good':avgHealth>65?'warn':'bad');
+
+  const risky = stations.filter(s=>s.health<85);
+  document.getElementById('f-alerts').textContent = risky.length;
+
+  const worst = stations.reduce((a,b)=> a.health<b.health? a:b);
+  document.getElementById('f-bottleneck').textContent = worst.health<75 ? worst.name : 'None';
+  document.getElementById('f-bottleneck-sub').textContent = worst.health<75
+    ? `health ${worst.health.toFixed(0)}, cycle drift ${worst.cycleDrift>0?'+':''}${worst.cycleDrift.toFixed(1)}%`
+    : 'no station currently below alert threshold';
+
+  document.getElementById('f-units').textContent = Math.floor(rndRange(310,340));
+
+  const feed = document.getElementById('alertFeed');
+  feed.innerHTML='';
+  const actions = ['Pre-stage relief operator','Trigger changeover check','Flag unit batch for re-inspection','Dispatch maintenance tech','Monitor — shadow mode, not yet actionable'];
+  risky.slice(0,8).sort((a,b)=>a.health-b.health).forEach((s,i)=>{
+    const t = new Date(Date.now()-i*7*60000);
+    const status = s.confidence>85 ? 'Validated' : 'Shadow-mode';
+    const row = document.createElement('tr');
+    row.innerHTML = `<td class="conf">${t.toTimeString().slice(0,5)}</td><td>${s.name} (${s.zone})</td>
+      <td>${s.health<65?'Defect-risk elevated':'Cycle-time drift'} — conf ${s.confidence.toFixed(0)}%</td>
+      <td>${s.health<65?actions[2]:pick(actions)}</td>
+      <td>${status==='Validated'?'<span class="pill bad">Active</span>':'<span class="pill warn">Shadow</span>'}</td>`;
+    feed.appendChild(row);
+  });
+}
+
+/* ---------- manager view ---------- */
+function computeManager(){
+  document.getElementById('m-stops').textContent = Math.floor(rndRange(3,6));
+  document.getElementById('m-escape').textContent = rndRange(0.9,1.4).toFixed(2)+'%';
+  const avgDrift = stations.reduce((a,s)=>a+s.cycleDrift,0)/stations.length;
+  document.getElementById('m-drift').textContent = (avgDrift>0?'+':'')+avgDrift.toFixed(1)+'%';
+  const covered = stations.filter(s=>!s.manual).length;
+  document.getElementById('m-coverage').textContent = covered+'/42';
+
+  const tbody = document.getElementById('managerTable');
+  tbody.innerHTML='';
+  stations.filter(s=>s.health<85).sort((a,b)=>a.health-b.health).forEach(s=>{
+    const row = document.createElement('tr');
+    row.innerHTML = `<td>${s.name}</td><td>${s.zone}</td><td>${s.manual?'Manual':'Sensor'}</td>
+      <td>${healthPill(s.health)} ${s.health.toFixed(0)}</td>
+      <td class="conf">${s.confidence.toFixed(0)}%</td>
+      <td style="color:${s.trend<0?'var(--red)':'var(--teal)'}">${s.trend>0?'+':''}${s.trend.toFixed(1)}</td>`;
+    tbody.appendChild(row);
+  });
+
+  const retro = document.getElementById('retrofitTable');
+  retro.innerHTML='';
+  stations.filter(s=>s.manual).sort((a,b)=>a.confidence-b.confidence).slice(0,5).forEach(s=>{
+    const row = document.createElement('tr');
+    const priority = s.confidence<62 ? 'High' : s.confidence<70 ? 'Medium' : 'Low';
+    row.innerHTML = `<td>${s.name} (${s.zone})</td><td>Low inference confidence (${s.confidence.toFixed(0)}%), ${s.historyDefects} linked defects</td>
+      <td>Low — single sensor clamp</td>
+      <td><span class="pill ${priority==='High'?'bad':priority==='Medium'?'warn':'good'}">${priority}</span></td>`;
+    retro.appendChild(row);
+  });
+
+  drawTrend();
+}
+
+function drawTrend(){
+  const canvas = document.getElementById('trendChart');
+  const ctx = canvas.getContext('2d');
+  const w = canvas.width = canvas.clientWidth;
+  const h = canvas.height;
+  ctx.clearRect(0,0,w,h);
+  ctx.strokeStyle = getCSS('--line');
+  ctx.lineWidth = 1;
+  for(let i=0;i<=4;i++){
+    const y = h - (i/4)*h;
+    ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(w,y); ctx.stroke();
+  }
+  const points = 14;
+  let base = 88;
+  const series = [];
+  for(let i=0;i<points;i++){
+    base += rndRange(-1.5,1.3);
+    base = Math.max(72,Math.min(96,base));
+    series.push(base);
+  }
+  ctx.strokeStyle = getCSS('--teal');
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  series.forEach((v,i)=>{
+    const x = (i/(points-1))*w;
+    const y = h - ((v-65)/(99-65))*h;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  });
+  ctx.stroke();
+  ctx.fillStyle = getCSS('--sub');
+  ctx.font = '10px monospace';
+  ctx.fillText('Day -14', 2, h-2);
+  ctx.fillText('Today', w-38, h-2);
+}
+
+/* ---------- leadership view ---------- */
+function computeLeadership(){
+  document.getElementById('l-downtime').textContent = Math.floor(rndRange(1400,2200))+' min';
+  document.getElementById('l-rework').textContent = Math.floor(rndRange(60,140))+' hrs';
+  document.getElementById('l-roi').textContent = rndRange(2.4,3.4).toFixed(1)+'x';
+  document.getElementById('l-rollout').textContent = '1/3';
+}
+
+/* ---------- defect trace ---------- */
+function populateDefectSelect(){
+  const sel = document.getElementById('defectSelect');
+  sel.innerHTML = '';
+  const defects = [
+    {id:'DFX-2291', desc:'Panel gap tolerance fail — Unit #48213'},
+    {id:'DFX-2292', desc:'Paint blemish, rear quarter — Unit #48239'},
+    {id:'DFX-2293', desc:'Torque out-of-spec, subframe bolt — Unit #48250'},
+  ];
+  defects.forEach(d=>{
+    const opt = document.createElement('option');
+    opt.value = d.id; opt.textContent = `${d.id} — ${d.desc}`;
+    sel.appendChild(opt);
+  });
+}
+function runTrace(){
+  const id = document.getElementById('defectSelect').value;
+  // pick a plausible path: 6 stations ending near final inspection, one flagged suspect near start
+  const path = [];
+  const startZoneIdx = id==='DFX-2293' ? 0 : id==='DFX-2292' ? 8 : 20;
+  for(let i=0;i<6;i++){
+    path.push(stations[startZoneIdx+i] || stations[i]);
+  }
+  const suspect = path.reduce((a,b)=> a.confidence + a.health < b.confidence + b.health ? a : b);
+  let html = `<div class="card">
+    <h3>Trace Result — ${id}</h3>
+    <p style="font-size:13px;color:var(--sub);">Replaying this unit's path using its production timestamp trail. Candidate origin ranked by anomaly severity, historical correlation, and dwell-to-surface timing.</p>
+    <div class="trace-path">`;
+  path.forEach(s=>{
+    html += `<div class="node ${s.id===suspect.id?'suspect':''}">${s.name}<br><span style="color:var(--sub)">h:${s.health.toFixed(0)}</span></div><div class="arrow">→</div>`;
+  });
+  html = html.slice(0, -'<div class="arrow">→</div>'.length);
+  html += `</div>
+    <table style="margin-top:16px;">
+      <thead><tr><th>Rank</th><th>Station</th><th>Anomaly Severity</th><th>Historical Correlation</th><th>Combined Score</th></tr></thead>
+      <tbody>
+      ${path.map((s,i)=>{
+        const sev = (100-s.health).toFixed(0);
+        const corr = (s.historyDefects*12).toFixed(0);
+        const score = ((100-s.health)*0.6 + s.historyDefects*8).toFixed(0);
+        return `<tr><td>${i+1}</td><td>${s.name===suspect.name?'<b>'+s.name+' (top candidate)</b>':s.name}</td><td>${sev}</td><td>${corr}%</td><td>${score}</td></tr>`;
+      }).sort((a,b)=>0).join('')}
+      </tbody>
+    </table>
+    <p style="font-size:12px;color:var(--sub);margin-top:12px;">
+      3 other units passed <b>${suspect.name}</b> within the same anomalous window and have been flagged for proactive re-inspection (simulated).
+    </p>
+    <button class="action" style="margin-top:6px;" onclick="alert('Re-inspection queue created for flagged units (simulated).')">Create Re-Inspection Queue</button>
+  </div>`;
+  document.getElementById('traceResult').innerHTML = html;
+}
+
+/* ---------- nav ---------- */
+document.querySelectorAll('nav button').forEach(btn=>{
+  btn.onclick = ()=>{
+    document.querySelectorAll('nav button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    document.getElementById('view-'+btn.dataset.view).classList.add('active');
+    if(btn.dataset.view==='manager') drawTrend();
+  };
+});
+
+/* ---------- clock ---------- */
+function tickClock(){
+  document.getElementById('clock').textContent = 'simulated production clock — ' + new Date().toLocaleTimeString();
+}
+setInterval(tickClock, 1000); tickClock();
+
+/* ---------- init ---------- */
+function refreshAll(){
+  // small live drift to simulate "real-time"
+  stations.forEach(s=>{
+    s.health = Math.max(30,Math.min(99, s.health + rndRange(-1.2,1.1)));
+  });
+  renderLineMap();
+  computeFloor();
+  computeManager();
+  computeLeadership();
+}
+populateDefectSelect();
+refreshAll();
+setInterval(refreshAll, 5000);
+</script>
+</body>
+</html>
